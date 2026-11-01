@@ -1,0 +1,45 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>GPS Test</title>
+</head>
+<body>
+  <h2>Smart Traffic GPS Test</h2>
+  <button onclick="testGPS()">Test My Location</button>
+  <pre id="result">Waiting...</pre>
+
+  <script>
+    function testGPS() {
+      const output = document.getElementById("result");
+
+      if (!navigator.geolocation) {
+        output.textContent = "Geolocation is not supported.";
+        return;
+      }
+
+      output.textContent = "Getting location...";
+
+      navigator.geolocation.getCurrentPosition(
+        position => {
+          output.textContent =
+            "Latitude: " + position.coords.latitude +
+            "\nLongitude: " + position.coords.longitude +
+            "\nAccuracy: " + position.coords.accuracy + " metres";
+        },
+        error => {
+          output.textContent =
+            "Error code: " + error.code +
+            "\nMessage: " + error.message;
+        },
+        {
+          enableHighAccuracy: false,
+          timeout: 60000,
+          maximumAge: 30000
+        }
+      );
+    }
+  </script>
+</body>
+</html>

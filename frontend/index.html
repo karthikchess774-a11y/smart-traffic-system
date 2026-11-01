@@ -1,0 +1,411 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Smart Traffic Alert System</title>
+
+    <!-- MapLibre -->
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/maplibre-gl@6.11.2/dist/maplibre-gl.css"
+    >
+
+    <!-- Project CSS -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Manual Scanner Styles -->
+    <style>
+        .manual-scan-panel {
+            margin-top: 20px;
+            padding: 18px;
+            border: 1px solid #d8e2ed;
+            border-radius: 12px;
+            background: #f8fafc;
+            color: #172033;
+        }
+
+        .manual-scan-panel h3 {
+            margin-top: 0;
+            margin-bottom: 8px;
+        }
+
+        .manual-scan-description {
+            color: #526174;
+            margin-bottom: 16px;
+        }
+
+        .manual-scan-panel label {
+            display: block;
+            margin: 12px 0 8px;
+            font-weight: 600;
+        }
+
+        #manualScanRadius {
+            width: 100%;
+            cursor: pointer;
+        }
+
+        .manual-scan-radius-label {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .manual-scan-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 16px;
+        }
+
+        .manual-scan-buttons button {
+            cursor: pointer;
+            padding: 10px 14px;
+            border: 0;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+
+        #chooseScanLocation {
+            background: #2563eb;
+            color: white;
+        }
+
+        #scanTrafficHere {
+            background: #15803d;
+            color: white;
+        }
+
+        #resetScanLocation {
+            background: #e2e8f0;
+            color: #172033;
+        }
+
+        #manualScanStatus {
+            margin: 14px 0 8px;
+            font-size: 14px;
+        }
+
+        #manualScanResults {
+            padding: 12px;
+            border-radius: 8px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            line-height: 1.7;
+        }
+
+        .manual-scan-hint {
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 10px;
+        }
+
+        .arrival-time-hint {
+            font-size: 13px;
+            color: #526174;
+            margin-top: 6px;
+        }
+
+        @media (max-width: 600px) {
+            .manual-scan-buttons {
+                flex-direction: column;
+            }
+
+            .manual-scan-buttons button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- HEADER -->
+    <header>
+        <h1>🚦 Smart Traffic Alert System</h1>
+        <p>Traffic Monitoring &amp; Alternate Route Recommendation</p>
+    </header>
+
+    <main>
+
+        <!-- JOURNEY PLANNER -->
+        <section class="card">
+            <h2>🚗 Plan Your Journey</h2>
+
+            <label for="fromLocation">📍 From Location</label>
+            <input
+                type="text"
+                id="fromLocation"
+                placeholder="Enter starting location"
+            >
+
+            <button id="detectLocation" type="button">
+                📍 Detect My Location
+            </button>
+
+            <p id="locationStatus">
+                Location not detected yet.
+            </p>
+
+            <label for="destination">🎯 To Destination</label>
+            <input
+                type="text"
+                id="destination"
+                placeholder="Enter destination"
+            >
+
+            <label for="targetArrivalTime">
+                ⏰ Target Arrival Time
+            </label>
+
+            <input
+                type="time"
+                id="targetArrivalTime"
+                step="60"
+                required
+            >
+
+            <p id="arrivalTimeHint" class="arrival-time-hint">
+                Select a future arrival time. The current time is updated automatically.
+            </p>
+
+            <button id="findRoute" type="button">
+                🛣️ Find Route
+            </button>
+
+            <p id="routeMessage">
+                Enter your starting location and destination.
+            </p>
+        </section>
+
+        <!-- BACKEND STATUS -->
+        <section class="card">
+            <h2>⚙️ System Status</h2>
+            <p id="backendStatus">Checking backend...</p>
+        </section>
+
+        <!-- MAP AND MANUAL SCANNER -->
+        <section class="card">
+            <h2>🗺️ Live Traffic Map</h2>
+
+            <div class="map-wrapper">
+                <div id="map"></div>
+            </div>
+
+            <!-- MANUAL TRAFFIC SCANNER -->
+            <div class="manual-scan-panel">
+                <h3>📡 Manual Traffic Area Scanner</h3>
+
+                <p class="manual-scan-description">
+                    Select another location on the map to inspect
+                    traffic around that area. Your GPS monitoring
+                    circle remains separate.
+                </p>
+
+                <div class="manual-scan-radius-label">
+                    <label for="manualScanRadius">
+                        Scan Radius
+                    </label>
+
+                    <strong id="manualScanRadiusValue">5 km</strong>
+                </div>
+
+                <input
+                    type="range"
+                    id="manualScanRadius"
+                    min="1"
+                    max="20"
+                    value="5"
+                    step="1"
+                    aria-label="Manual traffic scan radius in kilometres"
+                >
+
+                <div class="manual-scan-buttons">
+                    <button id="chooseScanLocation" type="button">
+                        📍 Choose Location on Map
+                    </button>
+
+                    <button id="scanTrafficHere" type="button">
+                        🔎 Scan Traffic Here
+                    </button>
+
+                    <button id="resetScanLocation" type="button">
+                        ↩️ Reset Scan
+                    </button>
+                </div>
+
+                <p
+                    id="manualScanStatus"
+                    role="status"
+                    aria-live="polite"
+                >
+                    Choose a location on the map to begin.
+                </p>
+
+                <div id="manualScanResults" aria-live="polite">
+                    No manual scan results yet.
+                </div>
+
+                <p class="manual-scan-hint">
+                    Tip: Select "Choose Location on Map", then click
+                    the map. Nearby roads are closer to the centre;
+                    mid-range and farther roads are sampled progressively
+                    outward. Only sampled road segments are checked,
+                    not every road in the circle.
+                </p>
+            </div>
+
+            <!-- TRAFFIC COMPASS -->
+            <div id="trafficCompass" class="traffic-compass">
+                <div class="compass-title">TRAFFIC DIRECTION</div>
+
+                <div class="compass">
+                    <div class="compass-n">N</div>
+                    <div class="compass-w">W</div>
+                    <div class="compass-center">🔵</div>
+                    <div class="compass-e">E</div>
+                    <div class="compass-s">S</div>
+                </div>
+
+                <div id="trafficSector" class="traffic-sector">
+                    Waiting for traffic data...
+                </div>
+            </div>
+
+            <!-- TRAFFIC DIRECTION SUMMARY -->
+            <div
+                id="trafficDirectionInfo"
+                class="traffic-direction-info"
+            >
+                📍 Traffic direction will appear here.
+            </div>
+        </section>
+
+        <!-- TRAFFIC STATUS -->
+        <section class="card">
+            <h2>🚦 Traffic Status</h2>
+
+            <div id="trafficStatus">
+                🟢 Waiting for route
+            </div>
+
+            <p>
+                Estimated Travel Time:
+                <strong id="travelTime">--</strong>
+            </p>
+        </section>
+
+        <!-- TRAFFIC ALERT -->
+        <section class="card">
+            <h2>🚨 Traffic Alert</h2>
+
+            <p id="alertMessage">
+                No traffic alerts currently.
+            </p>
+        </section>
+
+        <!-- ROUTE RECOMMENDATION -->
+        <section class="card">
+            <h2>🛣️ Route Recommendation</h2>
+
+            <p id="recommendationMessage">
+                Enter locations to get route recommendations.
+            </p>
+        </section>
+
+        <!-- JOURNEY PLANNING -->
+        <section class="card">
+            <h2>⏰ Journey Planning</h2>
+
+            <div id="journeyPlanning">
+                <p>
+                    Enter your target arrival time
+                    and find a route.
+                </p>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- TARGET ARRIVAL TIME FIX -->
+    <script>
+        (() => {
+            const arrivalInput =
+                document.getElementById("targetArrivalTime");
+
+            const arrivalHint =
+                document.getElementById("arrivalTimeHint");
+
+            if (!arrivalInput) return;
+
+            function getCurrentTimeString() {
+                const now = new Date();
+
+                const hours = String(
+                    now.getHours()
+                ).padStart(2, "0");
+
+                const minutes = String(
+                    now.getMinutes()
+                ).padStart(2, "0");
+
+                return `${hours}:${minutes}`;
+            }
+
+            function updateArrivalTime() {
+                const currentTime = getCurrentTimeString();
+
+                // Prevent selecting a time earlier than now.
+                arrivalInput.min = currentTime;
+
+                // Clear a selected time if it has become past.
+                if (
+                    arrivalInput.value &&
+                    arrivalInput.value < currentTime
+                ) {
+                    arrivalInput.value = "";
+
+                    if (arrivalHint) {
+                        arrivalHint.textContent =
+                            "That time has passed. Please select a future arrival time.";
+                    }
+                } else if (arrivalHint) {
+                    arrivalHint.textContent =
+                        "Current time: " + currentTime +
+                        ". Select a future arrival time.";
+                }
+            }
+
+            updateArrivalTime();
+
+            // Update the minimum time regularly.
+            setInterval(updateArrivalTime, 10000);
+
+            // Validate when the user changes the time.
+            arrivalInput.addEventListener("change", () => {
+                const currentTime = getCurrentTimeString();
+
+                if (
+                    arrivalInput.value &&
+                    arrivalInput.value < currentTime
+                ) {
+                    arrivalInput.value = "";
+
+                    if (arrivalHint) {
+                        arrivalHint.textContent =
+                            "Please select the current time or a future time.";
+                    }
+                }
+            });
+        })();
+    </script>
+
+    <!-- EXISTING APPLICATION SCRIPTS -->
+    <script type="module" src="script.js"></script>
+    <script src="traffic-direction.js"></script>
+
+</body>
+</html>
