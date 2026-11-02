@@ -31,9 +31,14 @@ app.use(express.json({ limit: "20kb" }));
 const userSchema = new mongoose.Schema({
     name: { type: String, required: true, trim: true, maxlength: 80 },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true, maxlength: 254 },
-    phone: { type: String, trim: true, sparse: true },
+    // Phone is optional. Account verification uses email OTP only; no SMS/DLT provider is required.
+    phone: { type: String, trim: true },
     emailVerified: { type: Boolean, default: false },
     passwordHash: { type: String, required: true, select: false },
+    passwordResetOtpHash: { type: String, select: false },
+    passwordResetOtpExpiresAt: { type: Date, select: false },
+    passwordResetAttempts: { type: Number, default: 0, select: false },
+    tokenVersion: { type: Number, default: 0 },
     createdAt: { type: Date, default: Date.now }
 }, { versionKey: false });
 const User = mongoose.model("User", userSchema);
@@ -56,11 +61,17 @@ function readToken(req) {
     const item = cookieHeader.split(";").map(v => v.trim()).find(v => v.startsWith(COOKIE_NAME + "="));
     return item ? decodeURIComponent(item.slice(COOKIE_NAME.length + 1)) : null;
 }
-function verifyUser(req, res, next) {
+async function verifyUser(req, res, next) {
     const token = readToken(req);
     if (!token) return res.status(401).json({ status: "error", message: "Please log in to continue." });
     try {
-        req.auth = jwt.verify(token, JWT_SECRET);
+        const payload = jwt.verify(token, JWT_SECRET);
+        const user = await User.findById(payload.sub).select("tokenVersion");
+        if (!user || Number(payload.tv || 0) !== Number(user.tokenVersion || 0)) {
+            res.clearCookie(COOKIE_NAME, { httpOnly: true, sameSite: "strict", secure: process.env.NODE_ENV === "production", path: "/" });
+            return res.status(401).json({ status: "error", message: "Your session is no longer valid. Please log in again." });
+        }
+        req.auth = payload;
         next();
     } catch (_) {
         res.clearCookie(COOKIE_NAME, { httpOnly: true, sameSite: "strict", secure: process.env.NODE_ENV === "production", path: "/" });
@@ -68,96 +79,93 @@ function verifyUser(req, res, next) {
     }
 }
 function setAuthCookie(res, user) {
-    const token = jwt.sign({ sub: user._id.toString(), email: user.email, name: user.name }, JWT_SECRET, { expiresIn: "7d" });
+    const token = jwt.sign({ sub: user._id.toString(), email: user.email, name: user.name, tv: Number(user.tokenVersion || 0) }, JWT_SECRET, { expiresIn: "7d" });
     res.cookie(COOKIE_NAME, token, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "strict", maxAge: 7 * 24 * 60 * 60 * 1000, path: "/" });
+}
+function validatePassword(password) {
+    if (typeof password !== "string" || password.length < 12 || password.length > 128 || Buffer.byteLength(password, "utf8") > 72) {
+        return "Password must be 12–128 characters (maximum 72 UTF-8 bytes for bcrypt).";
+    }
+    if (!/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
+        return "Use at least one uppercase letter, lowercase letter, number, and special character.";
+    }
+    return null;
+}
+function clearAuthCookie(res) {
+    res.clearCookie(COOKIE_NAME, { httpOnly: true, sameSite: "strict", secure: process.env.NODE_ENV === "production", path: "/" });
 }
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: "draft-8", legacyHeaders: false, message: { status: "error", message: "Too many attempts. Please try again in 15 minutes." } });
 const otpSendLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 4, standardHeaders: "draft-8", legacyHeaders: false, message: { status: "error", message: "Too many OTP requests. Please wait before trying again." } });
 
 function normalizePhone(value) {
-    let phone = String(value || "").trim().replace(/[\s()-]/g, "");
-    if (phone.startsWith("+")) phone = phone.slice(1);
-    if (/^\d{10}$/.test(phone)) phone = "91" + phone;
-    if (!/^[1-9]\d{7,14}$/.test(phone)) return null;
-    return phone;
+    const raw = String(value || "").trim().replace(/[\s()-]/g, "");
+    if (!raw) return null;
+    const phone = raw.startsWith("+") ? raw.slice(1) : raw;
+    const normalized = /^\d{10}$/.test(phone) ? "91" + phone : phone;
+    return /^[1-9]\d{7,14}$/.test(normalized) ? normalized : null;
 }
 function makeOtp() { return String(crypto.randomInt(0, 1000000)).padStart(6, "0"); }
 function hashOtp(otp, purpose) {
     return crypto.createHmac("sha256", JWT_SECRET).update(`${purpose}:${otp}`).digest("hex");
 }
 function safeEqualHex(a, b) {
-    if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false;
+    if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length || !/^[a-f0-9]+$/i.test(a) || !/^[a-f0-9]+$/i.test(b)) return false;
     return crypto.timingSafeEqual(Buffer.from(a, "hex"), Buffer.from(b, "hex"));
 }
 const emailTransporter = nodemailer.createTransport({
     service: "gmail",
-    auth: {
-        user: process.env.SMTP_EMAIL,
-        pass: process.env.SMTP_APP_PASSWORD
-    }
+    auth: { user: process.env.SMTP_EMAIL, pass: process.env.SMTP_APP_PASSWORD }
 });
-
-async function sendEmailOtp(email, otp) {
-    if (!process.env.SMTP_EMAIL || !process.env.SMTP_APP_PASSWORD) {
-        throw new Error("Gmail SMTP credentials are missing.");
-    }
-
+async function sendEmailOtp(email, otp, purpose = "registration") {
+    if (!process.env.SMTP_EMAIL || !process.env.SMTP_APP_PASSWORD) throw new Error("Gmail SMTP credentials are missing.");
+    const reset = purpose === "password-reset";
+    const subject = reset ? "Your Smart Traffic password reset code" : "Your Smart Traffic email verification OTP";
+    const description = reset ? "Use this code to reset your password" : "Your Smart Traffic email verification OTP is";
+    const expiry = reset ? "10 minutes" : "5 minutes";
     await emailTransporter.sendMail({
-        from: `"Smart Traffic" <${process.env.SMTP_EMAIL}>`,
-        to: email,
-        subject: "Your Smart Traffic Verification OTP",
-        text: `Your Smart Traffic email verification OTP is ${otp}. It expires in 5 minutes. Do not share this code.`,
-        html: `
-            <div style="background:#071426;color:white;padding:30px;
-                        font-family:Arial;border-radius:12px;">
-                <h2>Smart Traffic Verification</h2>
-                <p>Your email verification OTP is:</p>
-                <h1 style="letter-spacing:10px;color:#38bdf8;">
-                    ${otp}
-                </h1>
-                <p>This OTP expires in 5 minutes.</p>
-                <p>Do not share this code with anyone.</p>
-            </div>
-        `
+        from: `"Smart Traffic" <${process.env.SMTP_EMAIL}>`, to: email, subject,
+        text: `${description}: ${otp}. It expires in ${expiry}. Do not share this code.`,
+        html: `<div style="background:#071426;color:white;padding:30px;font-family:Arial;border-radius:12px;"><h2>Smart Traffic ${reset ? "Password Reset" : "Verification"}</h2><p>${description}:</p><h1 style="letter-spacing:10px;color:#38bdf8;">${otp}</h1><p>This code expires in ${expiry}.</p><p>Do not share this code with anyone.</p></div>`
     });
-
-    console.log("Email OTP sent successfully to:", email);
 }
 async function issueRegistrationOtp(pending, isResend = false) {
-    const emailOtp = makeOtp();
-    pending.emailOtpHash = hashOtp(emailOtp, "email");
+    const otp = makeOtp();
+    pending.emailOtpHash = hashOtp(otp, "registration");
     pending.emailOtpExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
     pending.expiresAt = new Date(Date.now() + 15 * 60 * 1000);
     pending.emailAttempts = 0;
     if (isResend) pending.resendCount += 1;
     await pending.save();
-
-    try {
-        await sendEmailOtp(pending.email, emailOtp);
-    } catch (error) {
-        console.error("Email OTP delivery error:", error.message);
-        throw new Error("Email OTP could not be sent. Check SMTP_EMAIL and SMTP_APP_PASSWORD in backend/.env.");
-    }
+    await sendEmailOtp(pending.email, otp, "registration");
 }
 
 app.post("/api/auth/register", otpSendLimiter, async (req, res) => {
     try {
         const name = String(req.body.name || "").trim();
         const email = String(req.body.email || "").trim().toLowerCase();
+        const phone = normalizePhone(req.body.phone);
         const password = String(req.body.password || "");
+        const passwordError = validatePassword(password);
         if (name.length < 2 || name.length > 80) return res.status(400).json({ status: "error", message: "Name must be between 2 and 80 characters." });
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ status: "error", message: "Enter a valid email address." });
-        if (password.length < 8 || password.length > 128) return res.status(400).json({ status: "error", message: "Password must be at least 8 characters." });
+        if (passwordError) return res.status(400).json({ status: "error", message: passwordError });
         if (await User.exists({ email })) return res.status(409).json({ status: "error", message: "An account with this email already exists." });
         const passwordHash = await bcrypt.hash(password, 12);
         let pending = await PendingRegistration.findOne({ email });
-        if (!pending) pending = new PendingRegistration({ name, email, passwordHash, resendCount: 0 });
-        else { pending.name = name; pending.passwordHash = passwordHash; }
-        await issueRegistrationOtp(pending);
-        return res.status(202).json({ status: "success", message: "Email verification code sent. Check your inbox.", email });
+        if (!pending) {
+            pending = new PendingRegistration({ name, email, phone, passwordHash, resendCount: 0 });
+            await issueRegistrationOtp(pending);
+        } else {
+            if (pending.resendCount >= 3) return res.status(429).json({ status: "error", message: "Verification resend limit reached. Please try again later." });
+            pending.name = name;
+            pending.phone = phone;
+            pending.passwordHash = passwordHash;
+            await issueRegistrationOtp(pending, true);
+        }
+        return res.status(202).json({ status: "success", message: "A verification code has been sent to your email. It expires in 5 minutes.", email });
     } catch (error) {
-        console.error("Registration email OTP error:", error.message);
-        return res.status(502).json({ status: "error", message: error.message || "Could not send the verification email." });
+        console.error("Registration OTP error:", error.message);
+        return res.status(502).json({ status: "error", message: "Could not send the verification email. Check SMTP configuration and try again." });
     }
 });
 
@@ -168,21 +176,21 @@ app.post("/api/auth/verify-registration", authLimiter, async (req, res) => {
         if (!/^\d{6}$/.test(emailOtp)) return res.status(400).json({ status: "error", message: "Enter the 6-digit email verification code." });
         const pending = await PendingRegistration.findOne({ email });
         if (!pending) return res.status(404).json({ status: "error", message: "Registration expired or not found. Please register again." });
-        if (pending.emailOtpExpiresAt.getTime() < Date.now() || pending.expiresAt.getTime() < Date.now()) return res.status(410).json({ status: "error", message: "Email verification code expired. Please request a new code." });
+        if (pending.emailOtpExpiresAt.getTime() < Date.now() || pending.expiresAt.getTime() < Date.now()) return res.status(410).json({ status: "error", message: "Verification code expired. Please request a new code." });
         if (pending.emailAttempts >= 5) return res.status(429).json({ status: "error", message: "Too many incorrect attempts. Request a new verification code." });
-        const emailOk = safeEqualHex(pending.emailOtpHash, hashOtp(emailOtp, "email"));
+        const emailOk = safeEqualHex(pending.emailOtpHash, hashOtp(emailOtp, "registration"));
         if (!emailOk) {
             pending.emailAttempts += 1;
             await pending.save();
-            return res.status(400).json({ status: "error", message: "Incorrect email verification code." });
+            return res.status(400).json({ status: "error", message: "The verification code is incorrect." });
         }
-        const user = await User.create({ name: pending.name, email: pending.email, passwordHash: pending.passwordHash, emailVerified: true });
+        const user = await User.create({ name: pending.name, email: pending.email, phone: pending.phone, passwordHash: pending.passwordHash, emailVerified: true });
         await PendingRegistration.deleteOne({ _id: pending._id });
         setAuthCookie(res, user);
-        return res.status(201).json({ status: "success", message: "Email verified. Your account is active.", user: { name: user.name, email: user.email } });
+        return res.status(201).json({ status: "success", message: "Email verified. Your account is active.", user: { name: user.name, email: user.email, phone: user.phone || null } });
     } catch (error) {
         if (error.code === 11000) return res.status(409).json({ status: "error", message: "An account with this email already exists." });
-        console.error("Email OTP verification error:", error.message);
+        console.error("OTP verification error:", error.message);
         return res.status(500).json({ status: "error", message: "Could not verify your account. Please try again." });
     }
 });
@@ -196,8 +204,62 @@ app.post("/api/auth/resend-registration-otp", otpSendLimiter, async (req, res) =
         await issueRegistrationOtp(pending, true);
         return res.json({ status: "success", message: "A new email verification code has been sent." });
     } catch (error) {
-        console.error("Email OTP resend error:", error.message);
-        return res.status(502).json({ status: "error", message: error.message || "Could not resend the verification email." });
+        console.error("OTP resend error:", error.message);
+        return res.status(502).json({ status: "error", message: "Could not resend the verification email." });
+    }
+});
+
+// Forgot password: always return the same response to avoid revealing registered email addresses.
+app.post("/api/auth/forgot-password", otpSendLimiter, async (req, res) => {
+    const generic = { status: "success", message: "If an account exists for that email, a password reset code has been sent." };
+    try {
+        const email = String(req.body.email || "").trim().toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(200).json(generic);
+        const user = await User.findOne({ email }).select("+passwordResetOtpHash +passwordResetOtpExpiresAt +passwordResetAttempts");
+        if (!user || user.emailVerified === false) return res.status(200).json(generic);
+        const otp = makeOtp();
+        user.passwordResetOtpHash = hashOtp(otp, "password-reset");
+        user.passwordResetOtpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+        user.passwordResetAttempts = 0;
+        await user.save();
+        try { await sendEmailOtp(email, otp, "password-reset"); }
+        catch (mailError) { console.error("Password reset email failed:", mailError.message); }
+        return res.status(200).json(generic);
+    } catch (error) {
+        console.error("Forgot password error:", error.message);
+        return res.status(200).json(generic);
+    }
+});
+
+app.post("/api/auth/reset-password", authLimiter, async (req, res) => {
+    try {
+        const email = String(req.body.email || "").trim().toLowerCase();
+        const otp = String(req.body.otp || "").trim();
+        const newPassword = String(req.body.newPassword || "");
+        const passwordError = validatePassword(newPassword);
+        if (!/^\d{6}$/.test(otp)) return res.status(400).json({ status: "error", message: "Enter the 6-digit reset code." });
+        if (passwordError) return res.status(400).json({ status: "error", message: passwordError });
+        const user = await User.findOne({ email }).select("+passwordHash +passwordResetOtpHash +passwordResetOtpExpiresAt +passwordResetAttempts");
+        if (!user || !user.passwordResetOtpHash || !user.passwordResetOtpExpiresAt || user.passwordResetOtpExpiresAt.getTime() < Date.now()) {
+            return res.status(400).json({ status: "error", message: "Invalid or expired reset code. Request a new one." });
+        }
+        if (user.passwordResetAttempts >= 5) return res.status(429).json({ status: "error", message: "Too many incorrect attempts. Request a new reset code." });
+        if (!safeEqualHex(user.passwordResetOtpHash, hashOtp(otp, "password-reset"))) {
+            user.passwordResetAttempts += 1;
+            await user.save();
+            return res.status(400).json({ status: "error", message: "Invalid or expired reset code. Request a new one." });
+        }
+        user.passwordHash = await bcrypt.hash(newPassword, 12);
+        user.passwordResetOtpHash = undefined;
+        user.passwordResetOtpExpiresAt = undefined;
+        user.passwordResetAttempts = 0;
+        user.tokenVersion = Number(user.tokenVersion || 0) + 1;
+        await user.save();
+        clearAuthCookie(res);
+        return res.json({ status: "success", message: "Password reset successfully. Please log in with your new password." });
+    } catch (error) {
+        console.error("Password reset error:", error.message);
+        return res.status(500).json({ status: "error", message: "Could not reset your password. Please try again." });
     }
 });
 
@@ -217,23 +279,49 @@ app.post("/api/auth/login", authLimiter, async (req, res) => {
     }
 });
 
+app.post("/api/auth/change-password", verifyUser, authLimiter, async (req, res) => {
+    try {
+        const currentPassword = String(req.body.currentPassword || "");
+        const newPassword = String(req.body.newPassword || "");
+        const passwordError = validatePassword(newPassword);
+        if (passwordError) return res.status(400).json({ status: "error", message: passwordError });
+        const user = await User.findById(req.auth.sub).select("+passwordHash");
+        if (!user || !(await bcrypt.compare(currentPassword, user.passwordHash))) return res.status(401).json({ status: "error", message: "Current password is incorrect." });
+        if (await bcrypt.compare(newPassword, user.passwordHash)) return res.status(400).json({ status: "error", message: "Choose a password different from your current password." });
+        user.passwordHash = await bcrypt.hash(newPassword, 12);
+        user.tokenVersion = Number(user.tokenVersion || 0) + 1;
+        await user.save();
+        clearAuthCookie(res);
+        return res.json({ status: "success", message: "Password changed. Please log in again." });
+    } catch (error) {
+        console.error("Change password error:", error.message);
+        return res.status(500).json({ status: "error", message: "Could not change your password. Please try again." });
+    }
+});
+
 app.get("/api/auth/me", verifyUser, async (req, res) => {
     const user = await User.findById(req.auth.sub).select("name email phone emailVerified");
     if (!user) return res.status(401).json({ status: "error", message: "Account not found. Please log in again." });
     res.json({ status: "success", user: { name: user.name, email: user.email, phone: user.phone || null, emailVerified: user.emailVerified !== false } });
 });
-// Backend connection status
-app.get("/api/status", (req, res) => {
-    res.json({
-        status: "success",
-        message: "Smart Traffic Backend Connected",
-        server: "running"
-    });
-});
 
 app.post("/api/auth/logout", (req, res) => {
-    res.clearCookie(COOKIE_NAME, { httpOnly: true, sameSite: "strict", secure: process.env.NODE_ENV === "production", path: "/" });
+    clearAuthCookie(res);
     res.json({ status: "success", message: "Logged out successfully." });
+});
+
+// Public health endpoint used by the dashboard's System Status indicator.
+// The server starts only after MongoDB connects, but report readiness explicitly.
+app.get("/api/status", (req, res) => {
+    const databaseConnected = mongoose.connection.readyState === 1;
+    return res.status(databaseConnected ? 200 : 503).json({
+        status: databaseConnected ? "success" : "error",
+        backend: "connected",
+        database: databaseConnected ? "connected" : "disconnected",
+        message: databaseConnected
+            ? "Smart Traffic backend and MongoDB are connected."
+            : "Backend is running but MongoDB is not connected."
+    });
 });
 
 app.get("/", (req, res) => res.redirect("/login.html"));
@@ -2284,7 +2372,11 @@ app.get("/api/traffic-scan", async (req, res) => {
 // =====================================================
 
 mongoose.connect(MONGODB_URI)
-    .then(() => {
+    .then(async () => {
+        // Migration: older versions used a required, non-sparse unique phone index.
+        // Drop it before creating the sparse index so email-only registrations can coexist.
+        try { await User.collection.dropIndex("phone_1"); } catch (error) { if (error.codeName !== "IndexNotFound" && error.code !== 27) throw error; }
+        await User.collection.createIndex({ phone: 1 }, { unique: true, sparse: true, name: "phone_sparse_unique" });
         console.log("MongoDB connected successfully.");
         app.listen(PORT, () => {
             console.log("\n========================================");

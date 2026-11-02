@@ -1,66 +1,71 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#071426">
-  <title>Sign in | Smart Traffic</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#071426" />
+  <title>Smart Traffic | Secure Account</title>
   <style>
-    *{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:Inter,Arial,sans-serif;color:#eaf2ff;background:radial-gradient(ellipse at 15% 10%,#123b68 0,transparent 38%),radial-gradient(ellipse at 90% 85%,#102d50 0,transparent 36%),#071426;display:grid;place-items:center;padding:24px}
-    .shell{width:min(100%,1000px);min-height:610px;display:grid;grid-template-columns:1.05fr .95fr;background:rgba(12,30,53,.82);border:1px solid rgba(148,184,224,.18);border-radius:26px;overflow:hidden;box-shadow:0 30px 90px #0007;backdrop-filter:blur(18px)}
-    .hero{padding:56px 48px;display:flex;flex-direction:column;justify-content:space-between;background:linear-gradient(145deg,rgba(25,91,157,.32),rgba(7,20,38,.1))}.brand{font-weight:800;letter-spacing:.2px;font-size:19px}.brand span{color:#59a5ff}.eyebrow{color:#76b8ff;text-transform:uppercase;font-size:11px;font-weight:800;letter-spacing:2px;margin:0 0 16px}.hero h1{font-size:clamp(34px,5vw,52px);line-height:1.08;margin:0 0 18px;letter-spacing:-2px}.hero p{color:#a9bdd5;line-height:1.7;max-width:410px}.feature{display:flex;gap:13px;align-items:center;color:#c5d7ed;font-size:13px;margin-top:18px}.dot{width:9px;height:9px;border-radius:50%;background:#36d399;box-shadow:0 0 15px #36d399}
-    .panel{padding:56px 48px;display:flex;flex-direction:column;justify-content:center}.tabs{display:flex;background:#071426;border:1px solid #203b5c;border-radius:12px;padding:4px;margin-bottom:30px}.tabs button{width:50%;border:0;border-radius:9px;padding:11px;background:transparent;color:#8fa8c5;font-weight:700;cursor:pointer}.tabs button.active{background:#173b63;color:white;box-shadow:0 4px 15px #0003}h2{margin:0 0 8px;font-size:27px}.sub{margin:0 0 25px;color:#91a8c3;font-size:13px;line-height:1.6}.field{margin:15px 0}.field label{display:block;font-size:12px;font-weight:700;color:#c3d3e7;margin-bottom:8px}.field input{width:100%;border:1px solid #294563;background:#091a2e;color:#f3f8ff;border-radius:10px;padding:14px;font:inherit;font-size:14px;outline:none}.field input:focus{border-color:#4c9dff;box-shadow:0 0 0 3px #3989ed24}.submit{width:100%;border:0;border-radius:10px;padding:14px;background:linear-gradient(100deg,#287be0,#3c9bff);color:white;font-weight:800;font-size:14px;margin-top:12px;cursor:pointer}.submit:disabled{opacity:.65;cursor:wait}.message{min-height:20px;margin:14px 0 0;color:#ff9c9c;font-size:12px;line-height:1.5}.message.success{color:#62e6b2}.fine{color:#6f88a6;font-size:11px;line-height:1.6;margin-top:20px}.otp-destination{padding:10px 12px;border:1px solid #294563;background:#091a2e;color:#9fc8f3;border-radius:9px;font-size:13px;overflow-wrap:anywhere}.secondary-action{width:100%;border:1px solid #315579;border-radius:10px;padding:12px;background:#102d4b;color:#cfe5ff;font-weight:700;margin-top:10px;cursor:pointer}.text-action{width:100%;border:0;background:transparent;color:#8ebfff;margin-top:12px;padding:8px;cursor:pointer}.hidden{display:none!important}
-    @media(max-width:760px){.shell{grid-template-columns:1fr;max-width:480px}.hero{padding:30px 28px 24px;min-height:230px}.hero h1{font-size:34px}.hero .features{display:none}.panel{padding:34px 28px 38px}}
+    :root{color-scheme:dark;--bg:#06111f;--panel:#0b1b2e;--panel2:#10243b;--line:#203a56;--text:#e8f2ff;--muted:#9db0c7;--blue:#38bdf8;--blue2:#0ea5e9;--red:#fb7185;--green:#34d399}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:28px 16px;background:radial-gradient(ellipse at 20% 0%,#12304b 0,transparent 42%),linear-gradient(145deg,#040b14,#081a2d 60%,#06111f);font-family:Inter,Segoe UI,Arial,sans-serif;color:var(--text)}
+    .shell{width:min(100%,480px)}.brand{text-align:center;margin-bottom:22px}.mark{width:52px;height:52px;margin:0 auto 12px;border-radius:16px;display:grid;place-items:center;background:linear-gradient(135deg,#0ea5e9,#2563eb);font-size:25px;box-shadow:0 12px 36px #0284c755}.brand h1{font-size:22px;margin:0;letter-spacing:.2px}.brand p{margin:7px 0 0;color:var(--muted);font-size:13px}
+    .card{background:linear-gradient(160deg,#0c2035f5,#091827f5);border:1px solid var(--line);border-radius:22px;padding:26px;box-shadow:0 24px 80px #0008}.tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;background:#061321;padding:5px;border-radius:12px;margin-bottom:22px}.tab{border:0;border-radius:9px;padding:11px;background:transparent;color:var(--muted);font-weight:700;cursor:pointer}.tab.active{background:#173650;color:#eaf8ff;box-shadow:inset 0 0 0 1px #285777}
+    h2{font-size:21px;margin:0 0 7px}.sub{color:var(--muted);font-size:13px;line-height:1.5;margin:0 0 20px}.field{margin:14px 0}.field label{display:block;font-size:12px;font-weight:700;color:#c6d6e8;margin-bottom:7px}.field input{width:100%;border:1px solid #29435e;border-radius:11px;background:#071525;color:var(--text);padding:13px 14px;font-size:14px;outline:none;transition:.2s}.field input:focus{border-color:var(--blue);box-shadow:0 0 0 3px #38bdf81c}.hint{font-size:11px;color:var(--muted);line-height:1.5;margin-top:7px}.password-rules{font-size:11px;color:var(--muted);line-height:1.65;margin:8px 0 0;padding-left:17px}.btn{width:100%;border:0;border-radius:11px;padding:13px 16px;background:linear-gradient(100deg,#0284c7,#2563eb);color:white;font-size:14px;font-weight:800;cursor:pointer;margin-top:8px}.btn:disabled{opacity:.55;cursor:not-allowed}.linkrow{display:flex;justify-content:space-between;gap:10px;margin-top:15px}.link{border:0;background:none;padding:0;color:var(--blue);font-size:12px;cursor:pointer}.message{display:none;border-radius:10px;padding:11px 12px;margin:0 0 15px;font-size:12px;line-height:1.5}.message.show{display:block}.message.error{background:#7f1d2d44;border:1px solid #be445b;color:#fecdd3}.message.success{background:#064e3b55;border:1px solid #16845e;color:#a7f3d0}.hidden{display:none!important}.foot{text-align:center;color:#71869f;font-size:11px;margin-top:17px}.divider{height:1px;background:var(--line);margin:18px 0}.back{display:inline-block;margin:0 0 17px}
+    @media(max-width:420px){.card{padding:21px}.brand h1{font-size:20px}}
   </style>
 </head>
 <body>
   <main class="shell">
-    <section class="hero">
-      <div>
-        <div class="brand">🚦 SMART <span>TRAFFIC</span></div>
-        <div style="margin-top:76px">
-          <p class="eyebrow">Move smarter. Arrive on time.</p>
-          <h1>Your journey,<br>one step ahead.</h1>
-          <p>Live traffic insights, alternate routes and proactive journey planning — together in one dashboard.</p>
-        </div>
-      </div>
-      <div class="features">
-        <div class="feature"><span class="dot"></span> Live traffic monitoring</div>
-        <div class="feature">↗ &nbsp;Smarter alternate route recommendations</div>
-        <div class="feature">◷ &nbsp;Arrival-time planning</div>
-      </div>
-    </section>
-    <section class="panel">
-      <div class="tabs"><button id="loginTab" class="active" type="button">Sign in</button><button id="registerTab" type="button">Create account</button></div>
+    <header class="brand"><div class="mark">🚦</div><h1>Smart Traffic</h1><p>Secure access to your traffic dashboard</p></header>
+    <section class="card">
+      <div id="tabs" class="tabs"><button class="tab active" id="loginTab" type="button">Login</button><button class="tab" id="registerTab" type="button">Create account</button></div>
+      <div id="notice" class="message" role="status" aria-live="polite"></div>
+
       <form id="loginForm">
-        <h2>Welcome back</h2><p class="sub">Sign in to continue to your traffic dashboard.</p>
-        <div class="field"><label for="loginEmail">EMAIL ADDRESS</label><input id="loginEmail" type="email" autocomplete="email" placeholder="you@example.com" required></div>
-        <div class="field"><label for="loginPassword">PASSWORD</label><input id="loginPassword" type="password" autocomplete="current-password" placeholder="Enter your password" required></div>
-        <button class="submit" type="submit">Sign in to dashboard →</button>
+        <h2>Welcome back</h2><p class="sub">Log in to monitor traffic and plan your journey.</p>
+        <div class="field"><label for="loginEmail">Email address</label><input id="loginEmail" type="email" autocomplete="email" required maxlength="254" placeholder="you@example.com"></div>
+        <div class="field"><label for="loginPassword">Password</label><input id="loginPassword" type="password" autocomplete="current-password" required maxlength="128" placeholder="Enter your password"></div>
+        <button class="btn" type="submit">Login securely</button>
+        <div class="linkrow"><button class="link" id="showForgot" type="button">Forgot password?</button><button class="link" id="showRegister" type="button">Create an account</button></div>
       </form>
+
       <form id="registerForm" class="hidden">
-        <h2>Create your account</h2><p class="sub">A few details and your smarter journeys start here.</p>
-        <div class="field"><label for="registerName">FULL NAME</label><input id="registerName" type="text" autocomplete="name" minlength="2" maxlength="80" placeholder="Your name" required></div>
-        <div class="field"><label for="registerEmail">EMAIL ADDRESS</label><input id="registerEmail" type="email" autocomplete="email" placeholder="you@example.com" required></div>
-        <div class="field"><label for="registerPassword">PASSWORD</label><input id="registerPassword" type="password" autocomplete="new-password" minlength="8" placeholder="At least 8 characters" required></div>
-        <button class="submit" type="submit">Create account →</button>
+        <h2>Create your account</h2><p class="sub">Verify your email to activate your Smart Traffic account.</p>
+        <div class="field"><label for="regName">Full name</label><input id="regName" type="text" autocomplete="name" required minlength="2" maxlength="80" placeholder="Your name"></div>
+        <div class="field"><label for="regEmail">Email address</label><input id="regEmail" type="email" autocomplete="email" required maxlength="254" placeholder="you@example.com"></div>
+        <div class="field"><label for="regPassword">Create password</label><input id="regPassword" type="password" autocomplete="new-password" required minlength="12" maxlength="128" placeholder="At least 12 characters"><p class="hint">Use uppercase, lowercase, a number and a special character.</p></div>
+        <div class="field"><label for="regConfirm">Confirm password</label><input id="regConfirm" type="password" autocomplete="new-password" required minlength="12" maxlength="128" placeholder="Re-enter password"></div>
+        <ul class="password-rules"><li>At least 12 characters</li><li>One uppercase and one lowercase letter</li><li>One number and one special character</li><li>Do not reuse a password from another site</li></ul>
+        <button class="btn" type="submit">Send email verification code</button>
+        <div class="linkrow"><button class="link" id="showLogin" type="button">Already have an account? Login</button></div>
       </form>
-      <form id="otpForm" class="hidden">
-        <h2>Verify your email</h2>
-        <p class="sub">Enter the 6-digit verification code sent to your email address.</p>
-        <div class="field"><label>EMAIL OTP SENT TO</label><div id="otpEmailLabel" class="otp-destination"></div></div>
-        <div class="field"><label for="emailOtp">EMAIL VERIFICATION CODE</label><input id="emailOtp" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" minlength="6" placeholder="6-digit email code" required></div>
-        <button class="submit" type="submit">Verify email →</button>
-        <button id="resendOtp" class="secondary-action" type="button">Resend email code</button>
-        <button id="backToRegister" class="text-action" type="button">← Back to registration</button>
+
+      <form id="verifyForm" class="hidden">
+        <button class="link back" id="backToRegister" type="button">← Back</button>
+        <h2>Verify your email</h2><p class="sub">Enter the 6-digit code sent to <strong id="verifyEmailLabel"></strong>. It expires in 5 minutes.</p>
+        <div class="field"><label for="registrationOtp">Email verification code</label><input id="registrationOtp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" required placeholder="000000"></div>
+        <button class="btn" type="submit">Verify and continue</button>
+        <div class="linkrow"><button class="link" id="resendRegistration" type="button">Resend code</button></div>
       </form>
-      <p id="formMessage" class="message" role="status" aria-live="polite"></p>
-      <p class="fine">Your password is securely hashed before it is stored. Use a unique password for this account.</p>
+
+      <form id="forgotForm" class="hidden">
+        <button class="link back" id="backToLogin" type="button">← Back to login</button>
+        <h2>Reset your password</h2><p class="sub">We'll email you a one-time reset code if an account exists for that address.</p>
+        <div class="field"><label for="forgotEmail">Email address</label><input id="forgotEmail" type="email" autocomplete="email" required maxlength="254" placeholder="you@example.com"></div>
+        <button class="btn" type="submit">Send reset code</button>
+      </form>
+
+      <form id="resetForm" class="hidden">
+        <button class="link back" id="backToForgot" type="button">← Change email</button>
+        <h2>Choose a new password</h2><p class="sub">Enter the reset code from your email. It expires in 10 minutes.</p>
+        <div class="field"><label for="resetOtp">6-digit reset code</label><input id="resetOtp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" required placeholder="000000"></div>
+        <div class="field"><label for="newPassword">New password</label><input id="newPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" required placeholder="At least 12 characters"></div>
+        <div class="field"><label for="confirmNewPassword">Confirm new password</label><input id="confirmNewPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" required placeholder="Re-enter new password"></div>
+        <button class="btn" type="submit">Reset password</button>
+      </form>
     </section>
+    <p class="foot">Your password is securely hashed. Never share your verification code.</p>
   </main>
-  <script src="auth.js"></script>
+  <script src="/auth.js" defer></script>
 </body>
 </html>
